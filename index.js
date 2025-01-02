@@ -58,14 +58,13 @@ async function sendNotification(event) {
         const message = {
             notification: {
                 title: `New Event: ${event.title}`,
-                body: expandedBody,  // Use the formatted body
-                imageUrl: event.imageRes || null
+                body: expandedBody
             },
             data: {
                 eventId: event.id,
                 title: event.title,
                 description: event.description,
-                imageUrl: event.imageRes || '',
+                imageUrl: event.imageRes || '', // Only in data
                 date: event.date || '',
                 time: event.time || '',
                 registrationDeadline: event.registrationDeadline || '',
@@ -80,8 +79,7 @@ async function sendNotification(event) {
                     defaultSound: true,
                     channelId: 'events_channel',
                     visibility: 'public',
-                    priority: 'high',
-                    imageUrl: event.imageRes || null
+                    priority: 'high'
                 }
             },
             tokens: tokens
@@ -158,6 +156,22 @@ app.get('/check-tokens', async (req, res) => {
         });
     }
 });
+
+
+app.get('/test', (req, res) => {
+    try {
+        res.status(200).json({
+            success: true,
+            message: "Test endpoint working!"
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 
 // Start the server
 const PORT = process.env.PORT || 3000;
