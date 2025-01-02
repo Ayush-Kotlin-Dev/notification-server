@@ -21,11 +21,9 @@ function formatNotificationContent(event) {
         : event.description;
 
     const expandedBody = [
-        event.description,
-        '',
-        `📅 Date: ${event.date}`,
-        `⏰ Time: ${event.time}`,
-        `📝 Registration Deadline: ${event.registrationDeadline}`,
+        shortDescription,
+        `📅 ${event.date} at ${event.time}`,
+        `⏰ Register by: ${event.registrationDeadline}`,
         '🔗 Tap to register'
     ].join('\n');
 
@@ -35,7 +33,6 @@ function formatNotificationContent(event) {
     };
 }
 
-// Function to send notification
 async function sendNotification(event) {
     try {
         const usersSnapshot = await admin.firestore()
@@ -55,37 +52,15 @@ async function sendNotification(event) {
             return;
         }
 
-        // Create a formatted body with all details
-        const notificationBody = [
-            event.description,
-            '',
-            `📅 Date: ${event.date}`,
-            `⏰ Time: ${event.time}`,
-            `📝 Registration Deadline: ${event.registrationDeadline}`,
-            '🔗 Tap to register'
-        ].join('\n');
+        // Get formatted content
+        const { expandedBody } = formatNotificationContent(event);
 
-        // Create the message with simpler structure
         const message = {
             notification: {
                 title: `New Event: ${event.title}`,
-                body: notificationBody,
-                // Only include image if it exists
-                ...(event.imageRes && { imageUrl: event.imageRes })
+                body: expandedBody,  // Use the formatted body
+                imageUrl: event.imageRes || null
             },
-            android: {
-                priority: 'high',
-                notification: {
-                    icon: 'default',
-                    color: '#FF5722',
-                    defaultSound: true,
-                    channelId: 'events_channel',
-                    // Use notification expansion flags
-                    visibility: 'public',
-                    priority: 'high',
-                }
-            },
-            // Include all data for handling click actions
             data: {
                 eventId: event.id,
                 title: event.title,
@@ -97,10 +72,31 @@ async function sendNotification(event) {
                 formLink: event.formLink || '',
                 clickAction: "OPEN_EVENT_LINK"
             },
+            android: {
+                priority: 'high',
+                notification: {
+                    icon: 'default',
+                    color: '#FF5722',
+                    defaultSound: true,
+                    channelId: 'events_channel',
+                    visibility: 'public',
+                    priority: 'high',
+                    imageUrl: event.imageRes || null
+                }
+            },
             tokens: tokens
         };
 
-        console.log('\n📤 Sending notification for event:', event.title);
+        // Debug logging
+        console.log('\n📤 Sending notification details:', {
+            title: event.title,
+            description: event.description,
+            imageUrl: event.imageRes,
+            formLink: event.formLink,
+            date: event.date,
+            time: event.time,
+            registrationDeadline: event.registrationDeadline
+        });
 
         const response = await admin.messaging().sendEachForMulticast(message);
         console.log(`✅ Notification sent: Success: ${response.successCount}, Failed: ${response.failureCount}`);
@@ -116,8 +112,6 @@ async function sendNotification(event) {
         console.error('Error sending notification:', error);
     }
 }
-
-// Rest of your code remains the same...
 
 // Listen for new events in Firestore
 const eventsRef = admin.firestore().collection('events');
