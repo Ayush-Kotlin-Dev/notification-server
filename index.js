@@ -160,18 +160,87 @@ app.get('/check-tokens', async (req, res) => {
 
 app.get('/test', (req, res) => {
     try {
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Test endpoint working!"
         });
     } catch (error) {
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
 
+
+// Function to send update notification
+async function sendUpdateNotification(release) {
+    try {
+        // Get all users with FCM tokens
+        const usersSnapshot = await admin.firestore()
+            .collection('users')
+            .where('fcmToken', '!=', null)
+            .where('isLoggedIn', '==', true)
+            .get();
+
+        const tokens = usersSnapshot.docs
+            .map(doc => doc.data().fcmToken)
+            .filter(token => token);
+
+        if (tokens.length === 0) {
+            console.log('No active users found');
+            return;
+        }
+
+        // Format release notes
+        const releaseNotes = release.body || 'No release notes available';
+        
+        const message = {
+            notification: {
+                title: `🚀 New Update Available: ${release.tag_name}`,
+                body: `${release.name || 'New version available!'}\n\nTap to update.`
+            },
+            data: {
+                type: "APP_UPDATE",
+                version: release.tag_name,
+                releaseNotes: releaseNotes,
+                downloadUrl: release.assets[0]?.browser_download_url || '',
+                action: "UPDATE_APP"
+            },
+            android: {
+                priority: 'high',
+                notification: {
+                    icon: 'default',
+                    color: '#FF5722',
+                    channelId: 'updates_channel',
+                    priority: 'max',
+                    defaultSound: true,
+                    clickAction: "UPDATE_APP"
+                }
+            },
+            tokens: tokens
+        };
+
+        const response = await admin.messaging().sendEachForMulticast(message);
+        console.log(`✅ Update notification sent to ${response.successCount} users`);
+    } catch (error) {
+        console.error('Error sending update notification:', error);
+    }
+}
+
+// GitHub webhook endpoint
+app.post('/github-webhook', async (req, res) => {
+    const event = req.headers['x-github-event'];
+    const signature = req.headers['x-hub-signature-256'];
+    
+    // Verify it's a release event
+    if (event === 'release' && req.body.action === 'published') {
+        console.log('📦 New release detected:', req.body.release.tag_name);
+        await sendUpdateNotification(req.body.release);
+    }
+    
+    res.status(200).send('OK');
+});
 
 // Start the server
 const PORT = process.env.PORT || 3000;
